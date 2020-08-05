@@ -1,11 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
-</head>
-<body>
-  <script src="./index.js"></script>
-</body>
+  <body>
+    <script src="compiled.js"></script>
+    <style>
+      body {
+        margin: 0;
+        font-size: 24;
+        font-family: sans-serif;
+      }
+      .li-1 {
+        background: red;
+      }
+    </style>
+    <main id="main"></main>
+    <script>
+      var main = document.getElementById("main");
+      render(main);
+    </script>
+  </body>
 </html>
