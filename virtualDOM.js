@@ -27,6 +27,9 @@ function view() {
         <li id="1" class="li-1">
           第1
         </li>
+        <li id="2" class="li-1">
+          第2
+        </li>
       </ul>
     </div>
   );
@@ -40,7 +43,6 @@ function createElement(vdom) {
   }
 
   const { tag, props, children } = vdom;
-
   // 1. 创建元素
   const element = doc.createElement(tag);
 

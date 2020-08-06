@@ -31,6 +31,11 @@ function view() {
         "li",
         { id: "1", "class": "li-1" },
         "\u7B2C1"
+      ),
+      h(
+        "li",
+        { id: "2", "class": "li-1" },
+        "\u7B2C2"
       )
     )
   );
@@ -44,7 +49,6 @@ function createElement(vdom) {
   }
 
   const { tag, props, children } = vdom;
-
   // 1. 创建元素
   const element = doc.createElement(tag);
 
