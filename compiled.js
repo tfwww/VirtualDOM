@@ -21,6 +21,7 @@ function _objectSpread(target) { for (var i = 1; i < arguments.length; i++) { va
 function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
 var doc = document;
+var ATTR_KEY = '__preprops_';
 var nodePatchTypes = {
   CREATE: "create node",
   REMOVE: "remove node",
@@ -59,6 +60,22 @@ function h(tag, props) {
 }
 
 function view() {
+  return h("div", {
+    "class": "b"
+  }, "Hello World") // <ul>
+  //   {
+  //     // 生成元素为0到n-1的数组
+  //     [...Array(state.num).keys()].map((i) => (
+  //       <li id={i} class={`li-${i}`}>
+  //         第{i * state.num}
+  //       </li>
+  //     ))
+  //   }
+  // </ul>
+  ;
+}
+
+function newView() {
   return h("ul", null, // 生成元素为0到n-1的数组
   _toConsumableArray(Array(state.num).keys()).map(function (i) {
     return h("li", {
@@ -66,10 +83,6 @@ function view() {
       "class": "li-".concat(i)
     }, "\u7B2C", i * state.num);
   }));
-}
-
-function newView() {
-  return h("div", null, "Hello World");
 } // 创建dom元素
 
 
@@ -93,6 +106,8 @@ function createElement(vdom) {
 
 
 function setProps(element, props) {
+  element[ATTR_KEY] = props;
+
   for (var key in props) {
     element.setAttribute(key, props[key]);
   }
@@ -107,30 +122,39 @@ function setProps(element, props) {
 // 比较props的变化
 
 
-function diffProps(oldVDom, newVDom) {
+function diffProps(newVDom, element) {
   var patches = [];
 
-  var allProps = _objectSpread(_objectSpread({}, oldVDom.props), newVDom.props); // 获取新旧所有属性名后，再逐一判断新旧属性值
+  var newProps = _objectSpread({}, element[ATTR_KEY]);
 
+  var allProps = _objectSpread(_objectSpread({}, oldVDom.props), newVDom.props);
+
+  console.log('all props', allProps); // 获取新旧所有属性名后，再逐一判断新旧属性值
 
   Object.keys(allProps).forEach(function (key) {
     var oldValue = oldVDom.props[key];
     var newValue = newVDom.props[key]; // 删除属性
 
     if (newValue == undefined) {
+      console.log('dee', element);
+      element.removeAttribute(key);
       patches.push({
         type: propPatchTypes.REMOVE,
         key: key
       });
     } // 更新属性
     else if (oldValue == undefined || oldValue !== newValue) {
+        console.log('ddddddddddddd');
+        element.setAttribute(key, newValue);
         patches.push({
           type: propPatchTypes.UPDATE,
           key: key,
           value: newValue
         });
       }
-  });
+  }); // 属性重新赋值
+
+  element[ATTR_KEY] = newProps;
   return patches;
 } // 比较children的变化
 
@@ -156,49 +180,59 @@ function diffChildren(oldVDom, newVDom) {
  */
 
 
-function diff(oldVDom, newVDom) {
-  console.log('oldVDom', oldVDom, _typeof(oldVDom)); // 新建node
+function diff(newVDom, parent) {
+  var index = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 0;
+  var element = parent.childNodes[index]; // 新建node
 
-  if (oldVDom == undefined) {
-    return {
-      type: nodePatchTypes.CREATE,
-      vdom: newVDom
-    };
+  if (element == undefined) {
+    parent.appendChild(createElement(newVDom));
+    return; // return {
+    //   type: nodePatchTypes.CREATE,
+    //   vdom: newVDom,
+    // };
   } // 删除node
 
 
   if (newVDom == undefined) {
+    parent.removeChild(element);
     return {
       type: nodePatchTypes.REMOVE
     };
   } // 替换node
 
 
-  if (_typeof(oldVDom) !== _typeof(newVDom) || (typeof oldVDom === "string" || typeof oldVDom === "number") && oldVDom !== newVDom || oldVDom.tag !== newVDom.tag) {
-    console.log('ddd');
-    return {
-      type: nodePatchTypes.REPLACE,
-      vdom: newVDom
-    };
+  if (!isSameType(element, newVDom)) {
+    parent.replaceChild(createElement(newVDom), element);
+    return;
   } // 更新node
+  // 更新node
 
 
-  if (oldVDom.tag) {
+  if (element.nodeType === Node.ELEMENT_NODE) {
     // 比较props的变化
-    var propsDiff = diffProps(oldVDom, newVDom); // 比较children的变化
+    diffProps(newVDom, element); // 比较children的变化
 
-    var childrenDiff = diffChildren(oldVDom, newVDom); // 如果props或者children有变化，才需要更新
-
-    if (propsDiff.length > 0 || childrenDiff.some(function (patchObj) {
-      return patchObj !== undefined;
-    })) {
-      return {
-        type: nodePatchTypes.UPDATE,
-        props: propsDiff,
-        children: childrenDiff
-      };
-    }
+    diffChildren(newVDom, element);
   }
+} // 比较元素类型是否相同
+
+
+function isSameType(element, newVDom) {
+  var elmType = element.nodeType;
+
+  var vdomType = _typeof(newVDom); // 当dom元素是文本节点的情况
+
+
+  if (elmType === Node.TEXT_NODE && (vdomType === 'string' || vdomType === 'number') && element.nodeValue == newVDom) {
+    return true;
+  } // 当dom元素是普通节点的情况
+
+
+  if (elmType === Node.ELEMENT_NODE && element.tagName.toLowerCase() == newVDom.tag) {
+    return true;
+  }
+
+  return false;
 } // 更新属性
 
 
@@ -217,44 +251,36 @@ function patchProps(element, props) {
       }
   });
 } // 操作 DOM
+// function patch(parent, patchObj, index = 0) {
+//   if (!patchObj) {
+//     return;
+//   }
+//   // 新建元素
+//   if (patchObj.type === nodePatchTypes.CREATE) {
+//     return parent.appendChild(createElement(patchObj.vdom));
+//   }
+//   const element = parent.childNodes[index];
+//   // 删除元素
+//   if (patchObj.type === nodePatchTypes.REMOVE) {
+//     return parent.removeChild(element);
+//   }
+//   // 替换元素
+//   if (patchObj.type === nodePatchTypes.REPLACE) {
+//     return parent.replaceChild(createElement(patchObj.vdom), element);
+//   }
+//   // 更新元素
+//   if (patchObj.type === nodePatchTypes.UPDATE) {
+//     const { props, children } = patchObj;
+//     // 更新属性
+//     patchProps(element, props);
+//     // 更新子元素
+//     children.forEach((patchObj, i) => {
+//       // 更新子元素时，需要将子元素的序号传入
+//       patch(element, patchObj, i);
+//     });
+//   }
+// }
 
-
-function patch(parent, patchObj) {
-  var index = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 0;
-
-  if (!patchObj) {
-    return;
-  } // 新建元素
-
-
-  if (patchObj.type === nodePatchTypes.CREATE) {
-    return parent.appendChild(createElement(patchObj.vdom));
-  }
-
-  var element = parent.childNodes[index]; // 删除元素
-
-  if (patchObj.type === nodePatchTypes.REMOVE) {
-    return parent.removeChild(element);
-  } // 替换元素
-
-
-  if (patchObj.type === nodePatchTypes.REPLACE) {
-    return parent.replaceChild(createElement(patchObj.vdom), element);
-  } // 更新元素
-
-
-  if (patchObj.type === nodePatchTypes.UPDATE) {
-    var props = patchObj.props,
-        children = patchObj.children; // 更新属性
-
-    patchProps(element, props); // 更新子元素
-
-    children.forEach(function (patchObj, i) {
-      // 更新子元素时，需要将子元素的序号传入
-      patch(element, patchObj, i);
-    });
-  }
-}
 
 function tick(element) {
   if (state.num > 20) {
@@ -262,15 +288,14 @@ function tick(element) {
     return;
   }
 
-  var newVDom = newView(); // 生成差异对象
+  var newVDom = newView();
+  console.log('new'); // 生成差异对象
+  // const patchObj = diff(preVDom, newVDom, element,);
+  // console.log('patch obj', patchObj);
+  // preVDom = newVDom;
 
-  var patchObj = diff(preVDom, newVDom);
-  console.log('patch obj', patchObj);
-  preVDom = newVDom; // 给dom打个补丁
-
-  patch(element, patchObj); // newDom = createElement(newVDom);
-  // element.replaceChild(newDom, dom);
-  // dom = newDom;
+  diff(newVDom, element); // 给dom打个补丁
+  // patch(element, patchObj);
 }
 
 function render(element) {
