@@ -2,18 +2,6 @@
 
 function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
 
-function _toConsumableArray(arr) { return _arrayWithoutHoles(arr) || _iterableToArray(arr) || _unsupportedIterableToArray(arr) || _nonIterableSpread(); }
-
-function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
-
-function _unsupportedIterableToArray(o, minLen) { if (!o) return; if (typeof o === "string") return _arrayLikeToArray(o, minLen); var n = Object.prototype.toString.call(o).slice(8, -1); if (n === "Object" && o.constructor) n = o.constructor.name; if (n === "Map" || n === "Set") return Array.from(o); if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _arrayLikeToArray(o, minLen); }
-
-function _iterableToArray(iter) { if (typeof Symbol !== "undefined" && Symbol.iterator in Object(iter)) return Array.from(iter); }
-
-function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) return _arrayLikeToArray(arr); }
-
-function _arrayLikeToArray(arr, len) { if (len == null || len > arr.length) len = arr.length; for (var i = 0, arr2 = new Array(len); i < len; i++) { arr2[i] = arr[i]; } return arr2; }
-
 function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
 
 function _objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { ownKeys(Object(source), true).forEach(function (key) { _defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { ownKeys(Object(source)).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
@@ -21,7 +9,6 @@ function _objectSpread(target) { for (var i = 1; i < arguments.length; i++) { va
 function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
 var doc = document;
-var ATTR_KEY = '__preprops_';
 var nodePatchTypes = {
   CREATE: "create node",
   REMOVE: "remove node",
@@ -36,7 +23,8 @@ var state = {
   num: 5
 };
 var timer;
-var preVDom;
+var ATTR_KEY = "__preprops_";
+var arr = [0, 1, 2, 3, 4];
 
 function setState(newState) {
   state = _objectSpread(_objectSpread({}, state), newState);
@@ -60,29 +48,20 @@ function h(tag, props) {
 }
 
 function view() {
-  return h("div", {
-    "class": "b"
-  }, "Hello World") // <ul>
-  //   {
-  //     // 生成元素为0到n-1的数组
-  //     [...Array(state.num).keys()].map((i) => (
-  //       <li id={i} class={`li-${i}`}>
-  //         第{i * state.num}
-  //       </li>
-  //     ))
-  //   }
-  // </ul>
-  ;
-}
+  var elm = arr.pop(); // 用于测试能不能正常删除元素
 
-function newView() {
-  return h("ul", null, // 生成元素为0到n-1的数组
-  _toConsumableArray(Array(state.num).keys()).map(function (i) {
+  if (state.num !== 9) arr.unshift(elm); // 用于测试能不能正常添加元素
+
+  if (state.num === 12) arr.push(9);
+  return h("div", null, "Hello World", h("ul", {
+    myText: "dickens"
+  }, arr.map(function (i) {
     return h("li", {
       id: i,
-      "class": "li-".concat(i)
-    }, "\u7B2C", i * state.num);
-  }));
+      "class": "li-".concat(i),
+      key: i
+    }, "\u7B2C", i);
+  })));
 } // 创建dom元素
 
 
@@ -106,114 +85,154 @@ function createElement(vdom) {
 
 
 function setProps(element, props) {
+  // 属性赋值
   element[ATTR_KEY] = props;
 
   for (var key in props) {
     element.setAttribute(key, props[key]);
   }
-}
-/**
- * [{
- *      type,
- *      key,
- *      value
- * }]
- */
-// 比较props的变化
+} // 比较props的变化
 
 
 function diffProps(newVDom, element) {
-  var patches = [];
-
   var newProps = _objectSpread({}, element[ATTR_KEY]);
 
-  var allProps = _objectSpread(_objectSpread({}, oldVDom.props), newVDom.props);
+  var allProps = _objectSpread(_objectSpread({}, newProps), newVDom.props); // 获取新旧所有属性名后，再逐一判断新旧属性值
 
-  console.log('all props', allProps); // 获取新旧所有属性名后，再逐一判断新旧属性值
 
   Object.keys(allProps).forEach(function (key) {
-    var oldValue = oldVDom.props[key];
+    var oldValue = newProps[key];
     var newValue = newVDom.props[key]; // 删除属性
 
     if (newValue == undefined) {
-      console.log('dee', element);
       element.removeAttribute(key);
-      patches.push({
-        type: propPatchTypes.REMOVE,
-        key: key
-      });
+      delete newProps[key];
     } // 更新属性
     else if (oldValue == undefined || oldValue !== newValue) {
-        console.log('ddddddddddddd');
         element.setAttribute(key, newValue);
-        patches.push({
-          type: propPatchTypes.UPDATE,
-          key: key,
-          value: newValue
-        });
+        newProps[key] = newValue;
       }
   }); // 属性重新赋值
 
   element[ATTR_KEY] = newProps;
-  return patches;
 } // 比较children的变化
 
 
-function diffChildren(oldVDom, newVDom) {
-  var patches = []; // 获取子元素最大长度
+function diffChildren(newVDom, parent) {
+  // 有key的子元素
+  var nodesWithKey = {};
+  var nodesWithKeyCount = 0; // 没key的子元素
 
-  var childLength = Math.max(oldVDom.children.length, newVDom.children.length); // 遍历并diff子元素
+  var nodesWithoutKey = [];
+  var nodesWithoutKeyCount = 0;
+  var childNodes = parent.childNodes,
+      nodeLength = childNodes.length;
+  var vChildren = newVDom.children,
+      vLength = vChildren.length; // 用于优化没key子元素的数组遍历
 
-  for (var i = 0; i < childLength; i++) {
-    patches.push(diff(oldVDom.children[i], newVDom.children[i]));
+  var min = 0; // 将子元素分成有key和没key两组
+
+  for (var i = 0; i < nodeLength; i++) {
+    var child = childNodes[i],
+        props = child[ATTR_KEY];
+
+    if (props !== undefined && props.key !== undefined) {
+      nodesWithKey[props.key] = child;
+      nodesWithKeyCount++;
+    } else {
+      nodesWithoutKey[nodesWithoutKeyCount++] = child;
+    }
+  } // 遍历vdom的所有子元素
+
+
+  for (var _i = 0; _i < vLength; _i++) {
+    var vChild = vChildren[_i],
+        vProps = vChild.props;
+    var dom = void 0;
+    var vKey = vProps !== undefined ? vProps.key : undefined; // 根据key来查找对应元素
+
+    if (vKey !== undefined) {
+      if (nodesWithKeyCount && nodesWithKey[vKey] !== undefined) {
+        dom = nodesWithKey[vKey];
+        nodesWithKey[vKey] = undefined;
+        nodesWithKeyCount--;
+      }
+    } // 如果没有key字段，则找一个类型相同的元素出来做比较
+    else if (min < nodesWithoutKeyCount) {
+        for (var j = 0; j < nodesWithoutKeyCount; j++) {
+          var node = nodesWithoutKey[j];
+
+          if (node !== undefined && isSameType(node, vChild)) {
+            dom = node;
+            nodesWithoutKey[j] = undefined;
+            if (j === min) min++;
+            if (j === nodesWithoutKeyCount - 1) nodesWithoutKeyCount--;
+            break;
+          }
+        }
+      } // diff返回是否更新元素
+
+
+    var isUpdate = diff(dom, vChild, parent); // 如果是更新元素，且不是同一个dom元素，则移动到原先的dom元素之前
+
+    if (isUpdate) {
+      var originChild = childNodes[_i];
+
+      if (originChild !== dom) {
+        parent.insertBefore(dom, originChild);
+      }
+    }
+  } // 清理剩下的未使用的dom元素
+
+
+  if (nodesWithKeyCount) {
+    for (var key in nodesWithKey) {
+      var _node = nodesWithKey[key];
+
+      if (_node !== undefined) {
+        _node.parentNode.removeChild(_node);
+      }
+    }
+  } // 清理剩下的未使用的dom元素
+
+
+  while (min <= nodesWithoutKeyCount) {
+    var _node2 = nodesWithoutKey[nodesWithoutKeyCount--];
+
+    if (_node2 !== undefined) {
+      _node2.parentNode.removeChild(_node2);
+    }
   }
-
-  return patches;
 }
-/**
- * {
- *      type,
- *      vdom,
- *      props,
- *      children
- * }
- */
 
-
-function diff(newVDom, parent) {
-  var index = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 0;
-  var element = parent.childNodes[index]; // 新建node
-
-  if (element == undefined) {
+function diff(dom, newVDom, parent) {
+  // 新建node
+  if (dom == undefined) {
     parent.appendChild(createElement(newVDom));
-    return; // return {
-    //   type: nodePatchTypes.CREATE,
-    //   vdom: newVDom,
-    // };
+    return false;
   } // 删除node
 
 
   if (newVDom == undefined) {
-    parent.removeChild(element);
-    return {
-      type: nodePatchTypes.REMOVE
-    };
+    parent.removeChild(dom);
+    return false;
   } // 替换node
 
 
-  if (!isSameType(element, newVDom)) {
-    parent.replaceChild(createElement(newVDom), element);
-    return;
+  if (!isSameType(dom, newVDom)) {
+    parent.replaceChild(createElement(newVDom), dom);
+    return false;
   } // 更新node
-  // 更新node
 
 
-  if (element.nodeType === Node.ELEMENT_NODE) {
+  if (dom.nodeType === Node.ELEMENT_NODE) {
     // 比较props的变化
-    diffProps(newVDom, element); // 比较children的变化
+    diffProps(newVDom, dom); // 比较children的变化
 
-    diffChildren(newVDom, element);
+    diffChildren(newVDom, dom);
   }
+
+  return true;
 } // 比较元素类型是否相同
 
 
@@ -223,7 +242,7 @@ function isSameType(element, newVDom) {
   var vdomType = _typeof(newVDom); // 当dom元素是文本节点的情况
 
 
-  if (elmType === Node.TEXT_NODE && (vdomType === 'string' || vdomType === 'number') && element.nodeValue == newVDom) {
+  if (elmType === Node.TEXT_NODE && (vdomType === "string" || vdomType === "number") && element.nodeValue == newVDom) {
     return true;
   } // 当dom元素是普通节点的情况
 
@@ -233,54 +252,7 @@ function isSameType(element, newVDom) {
   }
 
   return false;
-} // 更新属性
-
-
-function patchProps(element, props) {
-  if (!props) {
-    return;
-  }
-
-  props.forEach(function (patchObj) {
-    // 删除属性
-    if (patchObj.type === propPatchTypes.REMOVE) {
-      element.removeAttribute(patchObj.key);
-    } // 更新或新建属性
-    else if (patchObj.type === propPatchTypes.UPDATE) {
-        element.setAttribute(patchObj.key, patchObj.value);
-      }
-  });
-} // 操作 DOM
-// function patch(parent, patchObj, index = 0) {
-//   if (!patchObj) {
-//     return;
-//   }
-//   // 新建元素
-//   if (patchObj.type === nodePatchTypes.CREATE) {
-//     return parent.appendChild(createElement(patchObj.vdom));
-//   }
-//   const element = parent.childNodes[index];
-//   // 删除元素
-//   if (patchObj.type === nodePatchTypes.REMOVE) {
-//     return parent.removeChild(element);
-//   }
-//   // 替换元素
-//   if (patchObj.type === nodePatchTypes.REPLACE) {
-//     return parent.replaceChild(createElement(patchObj.vdom), element);
-//   }
-//   // 更新元素
-//   if (patchObj.type === nodePatchTypes.UPDATE) {
-//     const { props, children } = patchObj;
-//     // 更新属性
-//     patchProps(element, props);
-//     // 更新子元素
-//     children.forEach((patchObj, i) => {
-//       // 更新子元素时，需要将子元素的序号传入
-//       patch(element, patchObj, i);
-//     });
-//   }
-// }
-
+}
 
 function tick(element) {
   if (state.num > 20) {
@@ -288,38 +260,21 @@ function tick(element) {
     return;
   }
 
-  var newVDom = newView();
-  console.log('new'); // 生成差异对象
-  // const patchObj = diff(preVDom, newVDom, element,);
-  // console.log('patch obj', patchObj);
-  // preVDom = newVDom;
+  var newVDom = view();
+  var dom = element.firstChild; // 比较并更新节点
 
-  diff(newVDom, element); // 给dom打个补丁
-  // patch(element, patchObj);
+  diff(dom, newVDom, element);
 }
 
 function render(element) {
   // 初始化的VD
   var vdom = view();
-  preVDom = vdom;
   console.log(vdom);
   var dom = createElement(vdom);
   element.appendChild(dom); // 每500毫秒改变一次state，并生成VD
-  // timer = setInterval(() => {
-  //   state.num += 1;
-  //   tick(element);
-  // }, 500);
-  // timer = setTimeout(() => {
-  //   state.num += 1;
-  //   tick(element);
-  // }, 500);
-}
 
-window.onload = function name(params) {
-  var btn = document.querySelector('#btn');
-  btn.addEventListener('click', function (params) {
-    var element = document.getElementById("main");
+  timer = setInterval(function () {
     state.num += 1;
     tick(element);
-  });
-};
+  }, 500);
+}

@@ -1,6 +1,4 @@
 const doc = document;
-const ATTR_KEY = '__preprops_';
-
 const nodePatchTypes = {
   CREATE: "create node",
   REMOVE: "remove node",
@@ -16,7 +14,10 @@ let state = {
   num: 5,
 };
 let timer;
-let preVDom;
+
+const ATTR_KEY = "__preprops_";
+
+const arr = [0, 1, 2, 3, 4];
 
 function setState(newState) {
   state = { ...state, ...newState };
@@ -36,33 +37,25 @@ function h(tag, props, ...children) {
 }
 
 function view() {
-  return (
-    <div class="b" >Hello World</div>
-    // <ul>
-    //   {
-    //     // 生成元素为0到n-1的数组
-    //     [...Array(state.num).keys()].map((i) => (
-    //       <li id={i} class={`li-${i}`}>
-    //         第{i * state.num}
-    //       </li>
-    //     ))
-    //   }
-    // </ul>
-  );
-}
+  const elm = arr.pop();
 
-function newView() {
+  // 用于测试能不能正常删除元素
+  if (state.num !== 9) arr.unshift(elm);
+
+  // 用于测试能不能正常添加元素
+  if (state.num === 12) arr.push(9);
+
   return (
-    <ul>
-      {
-        // 生成元素为0到n-1的数组
-        [...Array(state.num).keys()].map((i) => (
-          <li id={i} class={`li-${i}`}>
-            第{i * state.num}
+    <div>
+      Hello World
+      <ul myText="dickens">
+        {arr.map((i) => (
+          <li id={i} class={`li-${i}`} key={i}>
+            第{i}
           </li>
-        ))
-      }
-    </ul>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -89,116 +82,160 @@ function createElement(vdom) {
 
 // 属性赋值
 function setProps(element, props) {
+  // 属性赋值
   element[ATTR_KEY] = props;
+
   for (let key in props) {
     element.setAttribute(key, props[key]);
   }
 }
 
-/**
- * [{
- *      type,
- *      key,
- *      value
- * }]
- */
 // 比较props的变化
 function diffProps(newVDom, element) {
-  const patches = [];
-  let newProps = {...element[ATTR_KEY]};
-  const allProps = { ...oldVDom.props, ...newVDom.props };
-  console.log('all props', allProps);
+  let newProps = { ...element[ATTR_KEY] };
+  const allProps = { ...newProps, ...newVDom.props };
 
   // 获取新旧所有属性名后，再逐一判断新旧属性值
   Object.keys(allProps).forEach((key) => {
-    const oldValue = oldVDom.props[key];
+    const oldValue = newProps[key];
     const newValue = newVDom.props[key];
 
     // 删除属性
     if (newValue == undefined) {
-      console.log('dee', element);
       element.removeAttribute(key);
-      patches.push({
-        type: propPatchTypes.REMOVE,
-        key,
-      });
+      delete newProps[key];
     }
     // 更新属性
     else if (oldValue == undefined || oldValue !== newValue) {
-      console.log('ddddddddddddd');
       element.setAttribute(key, newValue);
-      patches.push({
-        type: propPatchTypes.UPDATE,
-        key,
-        value: newValue,
-      });
+      newProps[key] = newValue;
     }
   });
+
   // 属性重新赋值
   element[ATTR_KEY] = newProps;
-  return patches;
 }
 
 // 比较children的变化
-function diffChildren(oldVDom, newVDom) {
-  const patches = [];
+function diffChildren(newVDom, parent) {
+  // 有key的子元素
+  const nodesWithKey = {};
+  let nodesWithKeyCount = 0;
 
-  // 获取子元素最大长度
-  const childLength = Math.max(
-    oldVDom.children.length,
-    newVDom.children.length
-  );
+  // 没key的子元素
+  const nodesWithoutKey = [];
+  let nodesWithoutKeyCount = 0;
 
-  // 遍历并diff子元素
-  for (let i = 0; i < childLength; i++) {
-    patches.push(diff(oldVDom.children[i], newVDom.children[i]));
+  const childNodes = parent.childNodes,
+    nodeLength = childNodes.length;
+
+  const vChildren = newVDom.children,
+    vLength = vChildren.length;
+
+  // 用于优化没key子元素的数组遍历
+  let min = 0;
+
+  // 将子元素分成有key和没key两组
+  for (let i = 0; i < nodeLength; i++) {
+    const child = childNodes[i],
+      props = child[ATTR_KEY];
+
+    if (props !== undefined && props.key !== undefined) {
+      nodesWithKey[props.key] = child;
+      nodesWithKeyCount++;
+    } else {
+      nodesWithoutKey[nodesWithoutKeyCount++] = child;
+    }
   }
 
-  return patches;
+  // 遍历vdom的所有子元素
+  for (let i = 0; i < vLength; i++) {
+    const vChild = vChildren[i],
+      vProps = vChild.props;
+    let dom;
+
+    let vKey = vProps !== undefined ? vProps.key : undefined;
+    // 根据key来查找对应元素
+    if (vKey !== undefined) {
+      if (nodesWithKeyCount && nodesWithKey[vKey] !== undefined) {
+        dom = nodesWithKey[vKey];
+        nodesWithKey[vKey] = undefined;
+        nodesWithKeyCount--;
+      }
+    }
+    // 如果没有key字段，则找一个类型相同的元素出来做比较
+    else if (min < nodesWithoutKeyCount) {
+      for (let j = 0; j < nodesWithoutKeyCount; j++) {
+        const node = nodesWithoutKey[j];
+        if (node !== undefined && isSameType(node, vChild)) {
+          dom = node;
+          nodesWithoutKey[j] = undefined;
+          if (j === min) min++;
+          if (j === nodesWithoutKeyCount - 1) nodesWithoutKeyCount--;
+          break;
+        }
+      }
+    }
+
+    // diff返回是否更新元素
+    const isUpdate = diff(dom, vChild, parent);
+
+    // 如果是更新元素，且不是同一个dom元素，则移动到原先的dom元素之前
+    if (isUpdate) {
+      const originChild = childNodes[i];
+      if (originChild !== dom) {
+        parent.insertBefore(dom, originChild);
+      }
+    }
+  }
+
+  // 清理剩下的未使用的dom元素
+  if (nodesWithKeyCount) {
+    for (let key in nodesWithKey) {
+      const node = nodesWithKey[key];
+      if (node !== undefined) {
+        node.parentNode.removeChild(node);
+      }
+    }
+  }
+  // 清理剩下的未使用的dom元素
+  while (min <= nodesWithoutKeyCount) {
+    const node = nodesWithoutKey[nodesWithoutKeyCount--];
+    if (node !== undefined) {
+      node.parentNode.removeChild(node);
+    }
+  }
 }
 
-/**
- * {
- *      type,
- *      vdom,
- *      props,
- *      children
- * }
- */
-function diff(newVDom, parent, index = 0) {
-  const element = parent.childNodes[index];
+function diff(dom, newVDom, parent) {
   // 新建node
-  if (element == undefined) {
-    parent.appendChild(createElement(newVDom))
-    return
-    // return {
-    //   type: nodePatchTypes.CREATE,
-    //   vdom: newVDom,
-    // };
+  if (dom == undefined) {
+    parent.appendChild(createElement(newVDom));
+    return false;
   }
+
   // 删除node
   if (newVDom == undefined) {
-    parent.removeChild(element)
-    return {
-      type: nodePatchTypes.REMOVE,
-    };
+    parent.removeChild(dom);
+    return false;
   }
 
   // 替换node
-  if (!isSameType(element, newVDom)) {
-    parent.replaceChild(createElement(newVDom), element);
-    return;
+  if (!isSameType(dom, newVDom)) {
+    parent.replaceChild(createElement(newVDom), dom);
+    return false;
   }
 
   // 更新node
-  // 更新node
-  if (element.nodeType === Node.ELEMENT_NODE) {
+  if (dom.nodeType === Node.ELEMENT_NODE) {
     // 比较props的变化
-    diffProps(newVDom, element);
+    diffProps(newVDom, dom);
 
     // 比较children的变化
-    diffChildren(newVDom, element);
+    diffChildren(newVDom, dom);
   }
+
+  return true;
 }
 
 // 比较元素类型是否相同
@@ -207,76 +244,24 @@ function isSameType(element, newVDom) {
   const vdomType = typeof newVDom;
 
   // 当dom元素是文本节点的情况
-  if (elmType === Node.TEXT_NODE &&
-      (vdomType === 'string' || vdomType === 'number') &&
-      element.nodeValue == newVDom
+  if (
+    elmType === Node.TEXT_NODE &&
+    (vdomType === "string" || vdomType === "number") &&
+    element.nodeValue == newVDom
   ) {
-     return true;
+    return true;
   }
 
   // 当dom元素是普通节点的情况
-  if (elmType === Node.ELEMENT_NODE && element.tagName.toLowerCase() == newVDom.tag) {
-      return true;
+  if (
+    elmType === Node.ELEMENT_NODE &&
+    element.tagName.toLowerCase() == newVDom.tag
+  ) {
+    return true;
   }
 
   return false;
 }
-
-// 更新属性
-function patchProps(element, props) {
-  if (!props) {
-    return;
-  }
-
-  props.forEach((patchObj) => {
-    // 删除属性
-    if (patchObj.type === propPatchTypes.REMOVE) {
-      element.removeAttribute(patchObj.key);
-    }
-    // 更新或新建属性
-    else if (patchObj.type === propPatchTypes.UPDATE) {
-      element.setAttribute(patchObj.key, patchObj.value);
-    }
-  });
-}
-
-// 操作 DOM
-// function patch(parent, patchObj, index = 0) {
-//   if (!patchObj) {
-//     return;
-//   }
-
-//   // 新建元素
-//   if (patchObj.type === nodePatchTypes.CREATE) {
-//     return parent.appendChild(createElement(patchObj.vdom));
-//   }
-
-//   const element = parent.childNodes[index];
-
-//   // 删除元素
-//   if (patchObj.type === nodePatchTypes.REMOVE) {
-//     return parent.removeChild(element);
-//   }
-
-//   // 替换元素
-//   if (patchObj.type === nodePatchTypes.REPLACE) {
-//     return parent.replaceChild(createElement(patchObj.vdom), element);
-//   }
-
-//   // 更新元素
-//   if (patchObj.type === nodePatchTypes.UPDATE) {
-//     const { props, children } = patchObj;
-
-//     // 更新属性
-//     patchProps(element, props);
-
-//     // 更新子元素
-//     children.forEach((patchObj, i) => {
-//       // 更新子元素时，需要将子元素的序号传入
-//       patch(element, patchObj, i);
-//     });
-//   }
-// }
 
 function tick(element) {
   if (state.num > 20) {
@@ -284,22 +269,16 @@ function tick(element) {
     return;
   }
 
-  const newVDom = newView();
-  console.log('new');
+  const newVDom = view();
+  const dom = element.firstChild;
 
-  // 生成差异对象
-  // const patchObj = diff(preVDom, newVDom, element,);
-  // console.log('patch obj', patchObj);
-  // preVDom = newVDom;
-  diff(newVDom, element,);
-  // 给dom打个补丁
-  // patch(element, patchObj);
+  // 比较并更新节点
+  diff(dom, newVDom, element);
 }
 
 function render(element) {
   // 初始化的VD
   const vdom = view();
-  preVDom = vdom;
 
   console.log(vdom);
 
@@ -307,21 +286,8 @@ function render(element) {
   element.appendChild(dom);
 
   // 每500毫秒改变一次state，并生成VD
-  // timer = setInterval(() => {
-  //   state.num += 1;
-  //   tick(element);
-  // }, 500);
-  // timer = setTimeout(() => {
-  //   state.num += 1;
-  //   tick(element);
-  // }, 500);
-}
-
-window.onload = function name(params) {
-  let btn = document.querySelector('#btn')
-  btn.addEventListener('click', function(params) {
-    var element = document.getElementById("main");
+  timer = setInterval(() => {
     state.num += 1;
     tick(element);
-  })
+  }, 500);
 }
