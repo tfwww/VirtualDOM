@@ -19,6 +19,9 @@ const ATTR_KEY = "__preprops_";
 
 const arr = [0, 1, 2, 3, 4];
 
+// 等待渲染的组件数组
+let pendingRenderComponents = [];
+
 class Component {
   constructor(props) {
     this.props = props;
@@ -27,13 +30,38 @@ class Component {
 
   setState(newState) {
     this.state = { ...this.state, ...newState };
-    const vdom = this.render();
-    diff(this.dom, vdom, this.parent);
+    enqueueRender(this);
   }
 
   render() {
     throw new Error("component should define its own render method");
   }
+}
+
+function enqueueRender(component) {
+  // 如果push后数组长度为1，则将异步刷新任务加入到事件循环当中
+  if (pendingRenderComponents.push(component) == 1) {
+    if (typeof Promise == "function") {
+      Promise.resolve().then(renderComponent);
+    } else {
+      setTimeout(renderComponent, 0);
+    }
+  }
+}
+
+function renderComponent() {
+  // 组件去重
+  const uniquePendingRenderComponents = [...new Set(pendingRenderComponents)];
+
+  // 渲染组件
+  uniquePendingRenderComponents.forEach((component) => {
+    const vdom = component.render();
+    diff(component.dom, vdom, component.parent);
+    console.log(component.state);
+  });
+
+  // 清空待渲染列表
+  pendingRenderComponents = [];
 }
 
 function buildComponentFromVDom(dom, vdom, parent) {
@@ -49,9 +77,6 @@ function buildComponentFromVDom(dom, vdom, parent) {
   if (componentInst == undefined) {
     try {
       componentInst = new cpnt(props);
-      setTimeout(() => {
-        componentInst.setState({ name: "Dickens" });
-      }, 5000);
     } catch (error) {
       throw new Error(`component creation error: ${cpnt.name}`);
     }
@@ -78,12 +103,24 @@ class MyComp extends Component {
     super(props);
     this.state = {
       name: "Tina",
+      count: 1,
     };
+  }
+
+  elmClick() {
+    this.setState({
+      name: `Jack${this.state.count}`,
+      count: this.state.count + 1,
+    });
+    this.setState({
+      name: `Jack${this.state.count}`,
+      count: this.state.count + 1,
+    });
   }
 
   render() {
     return (
-      <div>
+      <div id="myComp" onClick={this.elmClick.bind(this)}>
         <div>This is My Component! {this.props.count}</div>
         <div>name: {this.state.name}</div>
       </div>
@@ -161,8 +198,20 @@ function setProps(element, props) {
   element[ATTR_KEY] = props;
 
   for (let key in props) {
-    element.setAttribute(key, props[key]);
+    // on开头的属性当作事件处理
+    if (key.substring(0, 2) == "on") {
+      const evtName = key.substring(2).toLowerCase();
+      element.addEventListener(evtName, evtProxy);
+      (element._evtListeners || (element._evtListeners = {}))[evtName] =
+        props[key];
+    } else {
+      element.setAttribute(key, props[key]);
+    }
   }
+}
+
+function evtProxy(evt) {
+  this._evtListeners[evt.type](evt);
 }
 
 // 比较props的变化
@@ -175,15 +224,28 @@ function diffProps(newVDom, element) {
     const oldValue = newProps[key];
     const newValue = newVDom.props[key];
 
-    // 删除属性
-    if (newValue == undefined) {
-      element.removeAttribute(key);
-      delete newProps[key];
-    }
-    // 更新属性
-    else if (oldValue == undefined || oldValue !== newValue) {
-      element.setAttribute(key, newValue);
-      newProps[key] = newValue;
+    // on开头的属性当作事件处理
+    if (key.substring(0, 2) == "on") {
+      const evtName = key.substring(2).toLowerCase();
+      if (newValue) {
+        element.addEventListener(evtName, evtProxy);
+      } else {
+        element.removeEventListener(evtName, evtProxy);
+      }
+      (element._evtListeners || (element._evtListeners = {}))[
+        evtName
+      ] = newValue;
+    } else {
+      // 删除属性
+      if (newValue == undefined) {
+        element.removeAttribute(key);
+        delete newProps[key];
+      }
+      // 更新属性
+      else if (oldValue == undefined || oldValue !== newValue) {
+        element.setAttribute(key, newValue);
+        newProps[key] = newValue;
+      }
     }
   });
 

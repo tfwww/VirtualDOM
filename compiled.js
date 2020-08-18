@@ -16,6 +16,18 @@ function _getPrototypeOf(o) { _getPrototypeOf = Object.setPrototypeOf ? Object.g
 
 function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
 
+function _toConsumableArray(arr) { return _arrayWithoutHoles(arr) || _iterableToArray(arr) || _unsupportedIterableToArray(arr) || _nonIterableSpread(); }
+
+function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
+
+function _unsupportedIterableToArray(o, minLen) { if (!o) return; if (typeof o === "string") return _arrayLikeToArray(o, minLen); var n = Object.prototype.toString.call(o).slice(8, -1); if (n === "Object" && o.constructor) n = o.constructor.name; if (n === "Map" || n === "Set") return Array.from(o); if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _arrayLikeToArray(o, minLen); }
+
+function _iterableToArray(iter) { if (typeof Symbol !== "undefined" && Symbol.iterator in Object(iter)) return Array.from(iter); }
+
+function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) return _arrayLikeToArray(arr); }
+
+function _arrayLikeToArray(arr, len) { if (len == null || len > arr.length) len = arr.length; for (var i = 0, arr2 = new Array(len); i < len; i++) { arr2[i] = arr[i]; } return arr2; }
+
 function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
 
 function _objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { ownKeys(Object(source), true).forEach(function (key) { _defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { ownKeys(Object(source)).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
@@ -44,7 +56,9 @@ var state = {
 };
 var timer;
 var ATTR_KEY = "__preprops_";
-var arr = [0, 1, 2, 3, 4];
+var arr = [0, 1, 2, 3, 4]; // 等待渲染的组件数组
+
+var pendingRenderComponents = [];
 
 var Component = /*#__PURE__*/function () {
   function Component(props) {
@@ -58,8 +72,7 @@ var Component = /*#__PURE__*/function () {
     key: "setState",
     value: function setState(newState) {
       this.state = _objectSpread(_objectSpread({}, this.state), newState);
-      var vdom = this.render();
-      diff(this.dom, vdom, this.parent);
+      enqueueRender(this);
     }
   }, {
     key: "render",
@@ -70,6 +83,31 @@ var Component = /*#__PURE__*/function () {
 
   return Component;
 }();
+
+function enqueueRender(component) {
+  // 如果push后数组长度为1，则将异步刷新任务加入到事件循环当中
+  if (pendingRenderComponents.push(component) == 1) {
+    if (typeof Promise == "function") {
+      Promise.resolve().then(renderComponent);
+    } else {
+      setTimeout(renderComponent, 0);
+    }
+  }
+}
+
+function renderComponent() {
+  // 组件去重
+  var uniquePendingRenderComponents = _toConsumableArray(new Set(pendingRenderComponents)); // 渲染组件
+
+
+  uniquePendingRenderComponents.forEach(function (component) {
+    var vdom = component.render();
+    diff(component.dom, vdom, component.parent);
+    console.log(component.state);
+  }); // 清空待渲染列表
+
+  pendingRenderComponents = [];
+}
 
 function buildComponentFromVDom(dom, vdom, parent) {
   var cpnt = vdom.tag;
@@ -84,11 +122,6 @@ function buildComponentFromVDom(dom, vdom, parent) {
   if (componentInst == undefined) {
     try {
       componentInst = new cpnt(props);
-      setTimeout(function () {
-        componentInst.setState({
-          name: "Dickens"
-        });
-      }, 5000);
     } catch (error) {
       throw new Error("component creation error: ".concat(cpnt.name));
     }
@@ -119,15 +152,31 @@ var MyComp = /*#__PURE__*/function (_Component) {
 
     _this = _super.call(this, props);
     _this.state = {
-      name: "Tina"
+      name: "Tina",
+      count: 1
     };
     return _this;
   }
 
   _createClass(MyComp, [{
+    key: "elmClick",
+    value: function elmClick() {
+      this.setState({
+        name: "Jack".concat(this.state.count),
+        count: this.state.count + 1
+      });
+      this.setState({
+        name: "Jack".concat(this.state.count),
+        count: this.state.count + 1
+      });
+    }
+  }, {
     key: "render",
     value: function render() {
-      return h("div", null, h("div", null, "This is My Component! ", this.props.count), h("div", null, "name: ", this.state.name));
+      return h("div", {
+        id: "myComp",
+        onClick: this.elmClick.bind(this)
+      }, h("div", null, "This is My Component! ", this.props.count), h("div", null, "name: ", this.state.name));
     }
   }]);
 
@@ -201,8 +250,19 @@ function setProps(element, props) {
   element[ATTR_KEY] = props;
 
   for (var key in props) {
-    element.setAttribute(key, props[key]);
+    // on开头的属性当作事件处理
+    if (key.substring(0, 2) == "on") {
+      var evtName = key.substring(2).toLowerCase();
+      element.addEventListener(evtName, evtProxy);
+      (element._evtListeners || (element._evtListeners = {}))[evtName] = props[key];
+    } else {
+      element.setAttribute(key, props[key]);
+    }
   }
+}
+
+function evtProxy(evt) {
+  this._evtListeners[evt.type](evt);
 } // 比较props的变化
 
 
@@ -214,16 +274,29 @@ function diffProps(newVDom, element) {
 
   Object.keys(allProps).forEach(function (key) {
     var oldValue = newProps[key];
-    var newValue = newVDom.props[key]; // 删除属性
+    var newValue = newVDom.props[key]; // on开头的属性当作事件处理
 
-    if (newValue == undefined) {
-      element.removeAttribute(key);
-      delete newProps[key];
-    } // 更新属性
-    else if (oldValue == undefined || oldValue !== newValue) {
-        element.setAttribute(key, newValue);
-        newProps[key] = newValue;
+    if (key.substring(0, 2) == "on") {
+      var evtName = key.substring(2).toLowerCase();
+
+      if (newValue) {
+        element.addEventListener(evtName, evtProxy);
+      } else {
+        element.removeEventListener(evtName, evtProxy);
       }
+
+      (element._evtListeners || (element._evtListeners = {}))[evtName] = newValue;
+    } else {
+      // 删除属性
+      if (newValue == undefined) {
+        element.removeAttribute(key);
+        delete newProps[key];
+      } // 更新属性
+      else if (oldValue == undefined || oldValue !== newValue) {
+          element.setAttribute(key, newValue);
+          newProps[key] = newValue;
+        }
+    }
   }); // 属性重新赋值
 
   element[ATTR_KEY] = newProps;
