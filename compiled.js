@@ -1,5 +1,19 @@
 "use strict";
 
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) _setPrototypeOf(subClass, superClass); }
+
+function _setPrototypeOf(o, p) { _setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return _setPrototypeOf(o, p); }
+
+function _createSuper(Derived) { var hasNativeReflectConstruct = _isNativeReflectConstruct(); return function _createSuperInternal() { var Super = _getPrototypeOf(Derived), result; if (hasNativeReflectConstruct) { var NewTarget = _getPrototypeOf(this).constructor; result = Reflect.construct(Super, arguments, NewTarget); } else { result = Super.apply(this, arguments); } return _possibleConstructorReturn(this, result); }; }
+
+function _possibleConstructorReturn(self, call) { if (call && (_typeof(call) === "object" || typeof call === "function")) { return call; } return _assertThisInitialized(self); }
+
+function _assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
+
+function _isNativeReflectConstruct() { if (typeof Reflect === "undefined" || !Reflect.construct) return false; if (Reflect.construct.sham) return false; if (typeof Proxy === "function") return true; try { Date.prototype.toString.call(Reflect.construct(Date, [], function () {})); return true; } catch (e) { return false; } }
+
+function _getPrototypeOf(o) { _getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return _getPrototypeOf(o); }
+
 function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
 
 function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
@@ -7,6 +21,12 @@ function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (O
 function _objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { ownKeys(Object(source), true).forEach(function (key) { _defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { ownKeys(Object(source)).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
 
 function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); return Constructor; }
 
 var doc = document;
 var nodePatchTypes = {
@@ -25,6 +45,94 @@ var state = {
 var timer;
 var ATTR_KEY = "__preprops_";
 var arr = [0, 1, 2, 3, 4];
+
+var Component = /*#__PURE__*/function () {
+  function Component(props) {
+    _classCallCheck(this, Component);
+
+    this.props = props;
+    this.state = {};
+  }
+
+  _createClass(Component, [{
+    key: "setState",
+    value: function setState(newState) {
+      this.state = _objectSpread(_objectSpread({}, this.state), newState);
+      var vdom = this.render();
+      diff(this.dom, vdom, this.parent);
+    }
+  }, {
+    key: "render",
+    value: function render() {
+      throw new Error("component should define its own render method");
+    }
+  }]);
+
+  return Component;
+}();
+
+function buildComponentFromVDom(dom, vdom, parent) {
+  var cpnt = vdom.tag;
+
+  if (!_typeof(cpnt) === "function") {
+    throw new Error("vdom is not a component type");
+  }
+
+  var props = getVDomProps(vdom);
+  var componentInst = dom && dom._component; // 创建组件
+
+  if (componentInst == undefined) {
+    try {
+      componentInst = new cpnt(props);
+      setTimeout(function () {
+        componentInst.setState({
+          name: "Dickens"
+        });
+      }, 5000);
+    } catch (error) {
+      throw new Error("component creation error: ".concat(cpnt.name));
+    }
+  } // 组件更新
+  else {
+      componentInst.props = props;
+    }
+
+  var componentVDom = componentInst.render();
+  diff(dom, componentVDom, parent, componentInst);
+}
+
+function getVDomProps(vdom) {
+  var props = vdom.props;
+  props.children = vdom.children;
+  return props;
+}
+
+var MyComp = /*#__PURE__*/function (_Component) {
+  _inherits(MyComp, _Component);
+
+  var _super = _createSuper(MyComp);
+
+  function MyComp(props) {
+    var _this;
+
+    _classCallCheck(this, MyComp);
+
+    _this = _super.call(this, props);
+    _this.state = {
+      name: "Tina"
+    };
+    return _this;
+  }
+
+  _createClass(MyComp, [{
+    key: "render",
+    value: function render() {
+      return h("div", null, h("div", null, "This is My Component! ", this.props.count), h("div", null, "name: ", this.state.name));
+    }
+  }]);
+
+  return MyComp;
+}(Component);
 
 function setState(newState) {
   state = _objectSpread(_objectSpread({}, state), newState);
@@ -53,7 +161,9 @@ function view() {
   if (state.num !== 9) arr.unshift(elm); // 用于测试能不能正常添加元素
 
   if (state.num === 12) arr.push(9);
-  return h("div", null, "Hello World", h("ul", {
+  return h("div", null, "Hello World", h(MyComp, {
+    count: state.num
+  }), h("ul", {
     myText: "dickens"
   }, arr.map(function (i) {
     return h("li", {
@@ -79,7 +189,9 @@ function createElement(vdom) {
 
   setProps(element, props); // 3. 创建子元素
 
-  children.map(createElement).forEach(element.appendChild.bind(element));
+  children.map(function (vchild) {
+    diff(undefined, vchild, element);
+  });
   return element;
 } // 属性赋值
 
@@ -205,10 +317,24 @@ function diffChildren(newVDom, parent) {
   }
 }
 
-function diff(dom, newVDom, parent) {
-  // 新建node
+function diff(dom, newVDom, parent, componentInst) {
+  if (_typeof(newVDom) == "object" && typeof newVDom.tag == "function") {
+    buildComponentFromVDom(dom, newVDom, parent);
+    return false;
+  } // 新建node
+
+
   if (dom == undefined) {
-    parent.appendChild(createElement(newVDom));
+    var _dom = createElement(newVDom); // 自定义组件
+
+
+    if (componentInst) {
+      _dom._component = componentInst;
+      _dom._componentConstructor = componentInst.constructor;
+      componentInst.dom = _dom;
+    }
+
+    parent.appendChild(_dom);
     return false;
   } // 删除node
 
@@ -237,6 +363,10 @@ function diff(dom, newVDom, parent) {
 
 
 function isSameType(element, newVDom) {
+  if (typeof newVDom.tag == "function") {
+    return element._componentConstructor == newVDom.tag;
+  }
+
   var elmType = element.nodeType;
 
   var vdomType = _typeof(newVDom); // 当dom元素是文本节点的情况
@@ -255,7 +385,7 @@ function isSameType(element, newVDom) {
 }
 
 function tick(element) {
-  if (state.num > 20) {
+  if (state.num > 10) {
     clearTimeout(timer);
     return;
   }

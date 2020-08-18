@@ -19,6 +19,78 @@ const ATTR_KEY = "__preprops_";
 
 const arr = [0, 1, 2, 3, 4];
 
+class Component {
+  constructor(props) {
+    this.props = props;
+    this.state = {};
+  }
+
+  setState(newState) {
+    this.state = { ...this.state, ...newState };
+    const vdom = this.render();
+    diff(this.dom, vdom, this.parent);
+  }
+
+  render() {
+    throw new Error("component should define its own render method");
+  }
+}
+
+function buildComponentFromVDom(dom, vdom, parent) {
+  const cpnt = vdom.tag;
+  if (!typeof cpnt === "function") {
+    throw new Error("vdom is not a component type");
+  }
+
+  const props = getVDomProps(vdom);
+  let componentInst = dom && dom._component;
+
+  // 创建组件
+  if (componentInst == undefined) {
+    try {
+      componentInst = new cpnt(props);
+      setTimeout(() => {
+        componentInst.setState({ name: "Dickens" });
+      }, 5000);
+    } catch (error) {
+      throw new Error(`component creation error: ${cpnt.name}`);
+    }
+  }
+  // 组件更新
+  else {
+    componentInst.props = props;
+  }
+
+  const componentVDom = componentInst.render();
+
+  diff(dom, componentVDom, parent, componentInst);
+}
+
+function getVDomProps(vdom) {
+  const props = vdom.props;
+  props.children = vdom.children;
+
+  return props;
+}
+
+class MyComp extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      name: "Tina",
+    };
+  }
+
+  render() {
+    return (
+      <div>
+        <div>This is My Component! {this.props.count}</div>
+        <div>name: {this.state.name}</div>
+      </div>
+    );
+  }
+}
+
 function setState(newState) {
   state = { ...state, ...newState };
 }
@@ -48,6 +120,7 @@ function view() {
   return (
     <div>
       Hello World
+      <MyComp count={state.num} />
       <ul myText="dickens">
         {arr.map((i) => (
           <li id={i} class={`li-${i}`} key={i}>
@@ -75,7 +148,9 @@ function createElement(vdom) {
   setProps(element, props);
 
   // 3. 创建子元素
-  children.map(createElement).forEach(element.appendChild.bind(element));
+  children.map((vchild) => {
+    diff(undefined, vchild, element);
+  });
 
   return element;
 }
@@ -207,10 +282,24 @@ function diffChildren(newVDom, parent) {
   }
 }
 
-function diff(dom, newVDom, parent) {
+function diff(dom, newVDom, parent, componentInst) {
+  if (typeof newVDom == "object" && typeof newVDom.tag == "function") {
+    buildComponentFromVDom(dom, newVDom, parent);
+    return false;
+  }
+
   // 新建node
   if (dom == undefined) {
-    parent.appendChild(createElement(newVDom));
+    const dom = createElement(newVDom);
+
+    // 自定义组件
+    if (componentInst) {
+      dom._component = componentInst;
+      dom._componentConstructor = componentInst.constructor;
+      componentInst.dom = dom;
+    }
+
+    parent.appendChild(dom);
     return false;
   }
 
@@ -240,6 +329,10 @@ function diff(dom, newVDom, parent) {
 
 // 比较元素类型是否相同
 function isSameType(element, newVDom) {
+  if (typeof newVDom.tag == "function") {
+    return element._componentConstructor == newVDom.tag;
+  }
+
   const elmType = element.nodeType;
   const vdomType = typeof newVDom;
 
@@ -264,7 +357,7 @@ function isSameType(element, newVDom) {
 }
 
 function tick(element) {
-  if (state.num > 20) {
+  if (state.num > 10) {
     clearTimeout(timer);
     return;
   }
